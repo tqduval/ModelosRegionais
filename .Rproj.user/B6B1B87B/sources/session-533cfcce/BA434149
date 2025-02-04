@@ -1,0 +1,28 @@
+{
+    "id": "BA434149",
+    "path": null,
+    "project_path": null,
+    "type": "object_explorer",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1738681059739.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "id": "63a586924b7c48189e1f92e6d5eeb901",
+        "name": "dfs.matlab",
+        "title": "dfs.matlab",
+        "language": "R",
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 7377518737310704177,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1738681059739,
+    "read_only": false,
+    "read_only_alternatives": []
+}
