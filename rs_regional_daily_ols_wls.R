@@ -20,6 +20,7 @@ df_rs_daily <- as_tibble(clean_names(df_rs_daily[, col_names]))
 
 # Build predictor variables matrix
 df_exp_variables <- df_rs_daily[!duplicated(df_rs_daily[1]),]                             # remove duplicates
+gauges <- df_exp_variables[[1]]                                                           # get station names vector
 df_exp_variables <-  fun_exp_var(df = df_exp_variables,                                   # apply transformations
                                  which_var = c("gauge_code", "elevation", "long", "lat"),
                                  which_log = c("elevation"),
