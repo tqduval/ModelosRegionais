@@ -1,0 +1,168 @@
+clear all;
+
+%%Load sampling Covariance Matrix.
+load('ScCov0.mat');
+scovmatrix = ScCov0; %%This is not the correct matrix. 
+
+%load values of the hydrologic quantity of interest at each site
+load('thetaSc');
+skew = theta;
+
+%%Load models to be analyzed - a matrix called "models"
+load('models9var.mat'); %load models which is a 512x10 matrix with all possible combinations of 9 variables. First column represents const
+
+
+for kmodel = 1:length(models(:,1))
+  modelIndex = find(models(kmodel,:)>0);    %% Identify the columms from the data to be used // find() retorna um subconjunto de elementos que atendem algum critério
+  A = zeros(length(skew),length(modelIndex)); %% Redefine the dimension of A
+
+  A = Scwholenew([modelIndex]); %%Matrix with the values of explanatory variables 
+  [N,p] = size(A);
+
+  %Center covariates if it's necessary
+  %A(:,2:p) = A(:,2:p) - ones(N,1)*mean(A(:,2:p));% Illinois data set is already centered
+  
+  resParameter_OLS = zeros(size(models,2),1);
+  resst_error_Par_OLS = zeros(size(models,2),1);
+  resParameter_WLS = zeros(size(models,2),1);
+  resst_error_Par_WLS = zeros(size(models,2),1);
+  resParameter_GLS = zeros(size(models,2),1);
+  resst_error_Par_GLS = zeros(size(models,2),1);
+  
+	  Baux = inv(A'*A)*A';
+
+
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %% Calculating parameters using OLS
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  Parameter_OLS = Baux*skew;
+  gammaOLS = (skew-A*Parameter_OLS)'*(skew-A*Parameter_OLS)/(N-p);
+  smodel_error_variance_OLS = gammaOLS;
+  cov_Parameter_OLS = gammaOLS*inv(A'*A);
+  st_error_Par_OLS = (diag(cov_Parameter_OLS)).^0.5;
+
+  diagonal = gammaOLS*eye(N);
+  invlambda = inv(diagonal);
+  SVE = A*inv(A'*invlambda*A)*A';
+  ASVEOLS = trace(SVE)/N;
+  AVP1OLS = gammaOLS + ASVEOLS;
+  term = 2*gammaOLS*SVE*invlambda;
+  AVP2OLS = AVP1OLS - trace(term)/N;
+
+  %% Compute R^2.
+  SSEOLS = (skew - A*Parameter_OLS)'*(skew - A*Parameter_OLS);
+  if modelIndex == 1
+        meanY = mean(A)*Parameter_OLS;
+        SSTOOLS = (skew - meanY)'*(skew - meanY);
+  end
+  SSROLS = (meanY - A*Parameter_OLS)'*(meanY - A*Parameter_OLS);
+  denom_R22 = SSEOLS + SSROLS;
+  R22OLS = 1 - SSEOLS/(denom_R22);
+
+  
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%Computing the WLS parameters
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  Wscovmatrix = scovmatrix.*eye(N);
+  %%Checking if gamma = 0 is enough
+  gamma = 0.0;
+  [checkGamma,gamma,Parameter_WLS,lambda,Ilambda] = feval('calculate_Gamma_skew_GLS',gamma,N,Wscovmatrix,skew,A,p);
+  checkGamma0 = checkGamma;
+  if checkGamma < 0
+     gamma = 0
+  else
+     options = optimset('Diagnostics',[]);
+     gamma = fzero('calculate_Gamma_skew_GLS',[0 20],options,N,Wscovmatrix,skew,A,p);
+     [checkGamma,gamma,Parameter_WLS,lambda,Ilambda]= feval('calculate_Gamma_skew_GLS',gamma,N,Wscovmatrix,skew,A,p);
+  end
+
+  if gamma == 0
+     aux =  A'*Ilambda*A;
+     aux2 = A'*inv(Wscovmatrix)*A;
+     cov_Parameter_WLS = inv(A'*Ilambda*A);
+  else
+     cov_Parameter_WLS = inv(A'*Ilambda*A);
+  end   
+  st_error_Par_WLS = (diag(cov_Parameter_WLS)).^0.5;
+  gammaWLS = gamma^2;
+  
+  diagonal = gammaWLS*eye(N);
+  invlambda = inv(diagonal + Wscovmatrix);
+  SVE = A*inv(A'*invlambda*A)*A';
+  ASVEWLS = trace(SVE)/N;
+  AVP1WLS = gammaWLS + ASVEWLS;
+  term = 2*gammaWLS*SVE*invlambda;
+  AVP2WLS = AVP1WLS - trace(term)/N;
+
+  %% Compute R^2.
+  SSEWLS = N*gammaWLS;
+  if modelIndex == 1
+        meanY = mean(A)*Parameter_WLS;
+        SSTOWLS = (skew - meanY)'*(skew - meanY);
+  end
+  SSRWLS = (meanY - A*Parameter_WLS)'*(meanY - A*Parameter_WLS);
+  denom_R22 = SSEWLS + SSRWLS;
+  R22WLS = 1 - SSEWLS/(denom_R22);
+  
+  
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%Computing the GLS parameters
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+  %%Checking if gamma = 0 is enough
+  gamma = 0.0;
+  [checkGamma,gamma,Parameter_GLS,lambda,Ilambda] = feval('calculate_Gamma_skew_GLS',gamma,N,scovmatrix,skew,A,p);
+  checkGamma0 = checkGamma;
+  if checkGamma < 0
+     gamma = 0
+  else
+     options = optimset('Diagnostics',[]);
+     gamma = fzero('calculate_Gamma_skew_GLS',[0 20],options,N,scovmatrix,skew,A,p);
+     [checkGamma,gamma,Parameter_GLS,lambda,Ilambda]= feval('calculate_Gamma_skew_GLS',gamma,N,scovmatrix,skew,A,p);
+  end
+
+  if gamma == 0
+     aux =  A'*Ilambda*A;
+     aux2 = A'*inv(scovmatrix)*A;
+     cov_Parameter_GLS = inv(A'*Ilambda*A);
+  else
+     cov_Parameter_GLS = inv(A'*Ilambda*A);
+  end   
+  st_error_Par_GLS = (diag(cov_Parameter_GLS)).^0.5;
+  gammaGLS = gamma^2;
+
+  diagonal = gammaGLS*eye(N);
+  invlambda = inv(diagonal + scovmatrix);
+  SVE = A*inv(A'*invlambda*A)*A';
+  ASVEGLS = trace(SVE)/N;
+  AVP1GLS = gammaGLS + ASVEGLS;
+  term = 2*gammaGLS*SVE*invlambda;
+  AVP2GLS = AVP1GLS - trace(term)/N;
+
+  %% Compute R^2.
+  SSEGLS = N*gammaGLS;
+  if modelIndex == 1
+        meanY = mean(A)*Parameter_GLS;
+        SSTOGLS = (skew - meanY)'*(skew - meanY);
+  end
+  SSRGLS = (meanY - A*Parameter_GLS)'*(meanY - A*Parameter_GLS);
+  denom_R22 = SSEGLS + SSRGLS;
+  R22GLS = 1 - SSEGLS/(denom_R22);
+  
+  
+  %% Writing results in a matrix RESULT
+
+  resParameter_OLS(modelIndex) = Parameter_OLS;
+  resst_error_Par_OLS(modelIndex) = st_error_Par_OLS;
+  resParameter_WLS(modelIndex) = Parameter_WLS;
+  resst_error_Par_WLS(modelIndex) = st_error_Par_WLS;
+  resParameter_GLS(modelIndex) = Parameter_GLS;
+  resst_error_Par_GLS(modelIndex) = st_error_Par_GLS;
+
+  resultOLS(kmodel,:) = [resParameter_OLS' resst_error_Par_OLS' gammaOLS ASVEOLS AVP1OLS AVP2OLS R22OLS SSTOOLS SSEOLS SSROLS];
+  resultWLS(kmodel,:) = [resParameter_WLS' resst_error_Par_WLS' gammaWLS ASVEWLS AVP1WLS AVP2WLS R22WLS SSTOWLS SSEWLS SSRWLS];
+  resultGLS(kmodel,:) = [resParameter_GLS' resst_error_Par_GLS' gammaGLS ASVEGLS AVP1GLS AVP2GLS R22GLS SSTOGLS SSEGLS SSRGLS];
+  modelNumber = kmodel
+end
+result = [resultOLS;resultWLS;resultGLS];
+dlmwrite('TestOWGLS2.out',result,' ');
